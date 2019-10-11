@@ -17,8 +17,11 @@
   },
   "homepage": "https://github.com/goga-m/btc-opreturn.git#readme",
   "dependencies": {
+    "bitcoinjs-lib": "^5.1.6",
     "express": "^4.17.1",
+    "lodash": "^4.17.15",
     "migrate": "^1.6.2",
+    "node-json-rpc2": "^1.1.0",
     "pg": "^7.12.1"
   }
 }
