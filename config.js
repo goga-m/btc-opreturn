@@ -5,7 +5,7 @@ module.exports = {
     host: 'localhost',
     database: 'op_return',
     password: 'psql',
-    port: 5432,
+    port: 5432
   },
   rpc: {
     protocol: 'http', // Optional. Will be http by default
