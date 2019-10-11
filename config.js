@@ -13,5 +13,11 @@ module.exports = {
     user: 'rpcuser', // Optional, only if auth needed
     password: 'rpcpassword', // Optional. Can be named 'pass'. Mandatory if user is passed.
     port: 8339
+  },
+  index: {
+    startingBlockHeight: 500000
+  },
+  server: {
+    port: 3000
   }
 }

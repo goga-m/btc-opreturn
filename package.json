@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/goga-m/btc-opreturn.git#readme",
   "dependencies": {
+    "express": "^4.17.1",
     "migrate": "^1.6.2",
     "pg": "^7.12.1"
   }
