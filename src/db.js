@@ -14,9 +14,17 @@ const db = new Pool(postgresql)
  * @returns {Promise<Object>} First occurence result
  */
 const queryByOpReturn = opReturnData => {
-  const queryString = `SELECT * FROM op_returns WHERE encode(op_return, 'hex')=encode('${opReturnData}', 'hex')`
-  return db.query(queryString)
-  .then(({ rows }) => rows[0])
+  const encoded = Buffer.from(opReturnData, 'utf8').toString('hex')
+  console.log(encoded)
+  const queryString = 'SELECT * FROM op_returns WHERE op_return = $1'
+  return db.query(queryString, [encoded])
+  // Format
+  .then(({ rows }) => {
+    return _.map(row => {
+      const opReturn = Buffer.from(String(row.op_return), 'hex').toString('utf8')
+      return _.assign(row, { op_return: opReturn })
+    }, rows)
+  })
 }
 
 /**
@@ -30,8 +38,9 @@ const queryByOpReturn = opReturnData => {
  * @returns {Promise<Object>} Saved record
  */
 const saveOpReturn = (str, txhash, blockhash, blockHeight) => {
+  const encoded = Buffer.from(str, 'utf8').toString('hex')
   const insertNewQuery = 'INSERT INTO op_returns(op_return, txhash, blockhash, blockheight) VALUES($1, $2, $3, $4) RETURNING op_return, txhash, blockhash, blockheight'
-  return db.query(insertNewQuery, [str, txhash, blockhash, blockHeight])
+  return db.query(insertNewQuery, [encoded, txhash, blockhash, blockHeight])
   .then(({ rows }) => rows[0])
 }
 
