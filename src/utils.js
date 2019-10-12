@@ -46,8 +46,8 @@ const extractOpcodeValue = (opcode, string) => {
   // opcode's value position (+1)
   const valueIndex = _.add(indexOfKey, 1)
   // Decode opcode value
-  // const opcodeValue = Buffer.from(data[valueIndex], 'hex')
-  return data[valueIndex]
+  const opcodeValue = Buffer.from(data[valueIndex], 'base64')
+  return opcodeValue.toString()
 }
 
 /**
@@ -64,6 +64,9 @@ const saveTxOpcodes = (txhash, blockHash, blockHeight) => {
   return extractTxOpcodes(txhash)
   .then(([opreturn]) => {
     // Attemp to save only when tx has opreturn
+    if (opreturn) {
+      console.log('saving ', opreturn)
+    }
     return opreturn
       ? saveOpReturn(opreturn, txhash, blockHash, blockHeight)
       : null
@@ -92,7 +95,9 @@ const indexBlock = blockHeight => {
         // Save OP_RETURNS of transaction (if found)
         saveTxOpcodes(txhash, block.hash, blockHeight)
         .then(res => {
-          console.log('saved', res)
+          if (res) {
+            console.log('saved', res)
+          }
           callback()
         })
         .catch(err => {
