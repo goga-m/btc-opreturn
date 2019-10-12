@@ -4,10 +4,11 @@ const _ = require('lodash/fp')
 const { saveOpReturn, getIndexedBlockHeight } = require('./db')
 const { indexBlock } = require('./utils')
 const btc = require('./rpc')()
+const log = require('./logger')
 
 const OPIndex = options => {
   let status = 'idle'
-  let idleDuration = 2000
+  let idleDuration = 10000
 
   /**
    * Monitor Unindexed blocks and start indexing if new blocks are found
@@ -17,14 +18,17 @@ const OPIndex = options => {
    * @function
    */
   const monitor = async () => {
+    log.info('Start monitoring')
     const lastBtcBlockHeight = await getBtcBlockHeight()
     const lastIndexedBlockHeight = await getIndexedBlockHeight()
 
     const missingBlockHeights = _.subtract(lastBtcBlockHeight, lastIndexedBlockHeight)
 
     if (_.gt(missingBlockHeights, 0)) {
+      log.info(`Found ${missingBlockHeights} unindexed blocks`)
       return start(lastIndexedBlockHeight, missingBlockHeights)
     } else {
+      log.info('All block OP_RETURNS are indexed')
       return idle()
     }
   }
@@ -51,20 +55,22 @@ const OPIndex = options => {
    */
   start = (blockHeight, times) => {
     status = 'indexing'
+    log.info('Start indexing', times, 'blocks')
     timesSeries(times, (n, cb) => {
       const next = _.add(n, 1) // n starts from 0
       const nextBlock = _.add(blockHeight, next)
-      console.log('Indexing block', nextBlock)
+      console.log('')
+      log.info(`Starting ${nextBlock} block `)
       indexBlock(nextBlock)
       .then(() => {
-        console.log('finished')
+        log.info(`Finished ${nextBlock} block `)
         cb()
       })
       .catch(err => {
         console.log('error', err)
       })
     }, (err, all) => {
-      console.log('finished', _.add(blockHeight, times))
+      log.info(`Finished indexing for ${_.add(blockHeight, times)} blocks`)
     })
   }
 
@@ -76,6 +82,7 @@ const OPIndex = options => {
    */
   idle = () => {
     status = 'idle'
+    log.info('Going idle')
     setTimeout(() => {
       monitor()
     }, idleDuration)

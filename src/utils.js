@@ -4,6 +4,7 @@ const _ = require('lodash/fp')
 
 const btc = require('./rpc')()
 const { saveOpReturn, getIndexedBlockHeight } = require('./db')
+const log = require('./logger')
 
 /**
  * Given a transaction, extract the required opcode.
@@ -64,9 +65,6 @@ const saveTxOpcodes = (txhash, blockHash, blockHeight) => {
   return extractTxOpcodes(txhash)
   .then(([opreturn]) => {
     // Attemp to save only when tx has opreturn
-    if (opreturn) {
-      console.log('saving ', opreturn)
-    }
     return opreturn
       ? saveOpReturn(opreturn, txhash, blockHash, blockHeight)
       : null
@@ -90,18 +88,18 @@ const indexBlock = blockHeight => {
     btc('getblockhash', [blockHeight])
     .then(hash => btc('getblock', [hash]))
     .then(block => {
-      console.log('Checking block', block.hash)
       mapSeries(block.tx, (txhash, callback) => {
         // Save OP_RETURNS of transaction (if found)
         saveTxOpcodes(txhash, block.hash, blockHeight)
-        .then(res => {
-          if (res) {
-            console.log('saved', res)
+        .then(opreturn => {
+          if (opreturn) {
+            log.info('Indexing', blockHeight, txhash, opreturn.op_return_utf)
+            // log.info(opreturn.op_return_utf)
           }
           callback()
         })
         .catch(err => {
-          console.log('error saving', txhash, err)
+          log.error('Failed saving of ', err)
           // TODO: handle
         })
       }, resolve)

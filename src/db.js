@@ -15,7 +15,6 @@ const db = new Pool(postgresql)
  */
 const queryByOpReturn = opReturnData => {
   const encoded = Buffer.from(opReturnData, 'utf8').toString('hex')
-  console.log(encoded)
   const queryString = 'SELECT * FROM op_returns WHERE op_return = $1'
   return db.query(queryString, [encoded])
   // Format
@@ -42,6 +41,10 @@ const saveOpReturn = (str, txhash, blockhash, blockHeight) => {
   const insertNewQuery = 'INSERT INTO op_returns(op_return, txhash, blockhash, blockheight) VALUES($1, $2, $3, $4) RETURNING op_return, txhash, blockhash, blockheight'
   return db.query(insertNewQuery, [encoded, txhash, blockhash, blockHeight])
   .then(({ rows }) => rows[0])
+  .then(row => {
+    const opReturn = Buffer.from(String(row.op_return), 'hex').toString('utf8')
+    return _.assign(row, { op_return: opReturn })
+  })
 }
 
 /**
