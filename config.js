@@ -15,7 +15,7 @@ module.exports = {
     port: 8339
   },
   index: {
-    startingBlockHeight: 599025
+    startingBlockHeight: 599068
   },
   server: {
     port: 3000

@@ -36,7 +36,7 @@ const OPIndex = options => {
   /**
    * Get the last block height from blockchain
    *
-   * @name async
+   * @name getBtcBlockHeight
    * @function
    * @returns {Promise<Number>} Last block height
    */
@@ -62,8 +62,9 @@ const OPIndex = options => {
       console.log('')
       log.info(`Starting ${nextBlock} block `)
       indexBlock(nextBlock)
-      .then(() => {
-        log.info(`Finished ${nextBlock} block `)
+      .then(all => {
+        log.info(`Finished ${nextBlock} Indexed ${_.sum(all)} OP_RETURN records.`)
+        process.exit()
         cb()
       })
       .catch(err => {
