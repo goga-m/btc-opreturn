@@ -7,67 +7,69 @@ const { saveOpReturn, getIndexedBlockHeight } = require('./db')
 const log = require('./logger')
 
 /**
- * Given a transaction, extract the required opcode.
- * This is used for the OP_RETURN extraction,
- * though the opcode is provided as a parameter that defaults to OP_RETURN.
+ * Check if outputs script is an OP_RETURN
+ *
+ * The output script for CoinSpark metadata begins with the OP_RETURN opcode (0x6A) 
+ * followed by a length byte between 0 and 40 (0x00 … 0x28). 
+ * This is the pattern followed by all OP_RETURN scripts
+ *
+ * See: http://coinspark.org/developers/metadata-format/
+ *
+ * @name isOpReturn
+ * @function
+ * @param {Array} script Script Buffer
+ * @returns {Boolean}
+ */
+const isOpReturn = script => {
+  return script.length > 2 && script[0] == 0x6a && script[1] > 0 
+}
+
+/**
+ * Given a transaction, extract OP_RETURN metadata
  *
  * @name extractTxOpcode
  * @function
  * @param {String} txId Transaction Id
- * @param {String} opcode Required opcode (OP_RETURN)
- * @returns {Array<String>} Array of decoded opcode values (e.g OP_RETURN opcodes)
+ * @returns {Array<String>} Array of decoded opcode values 
  */
-const extractTxOpcodes = (txId, opcode = 'OP_RETURN') => {
+const extractOpMeta = txId => {
   return btc('getrawtransaction', [txId])
   .then(txHex => {
     const tx = bitcoinjs.Transaction.fromHex(txHex)
     // Map tx outputs containing the extracted & decoded opcode (OP_RETURN)
-    const filteredOpReturn = _.map(out => {
-      const str = bitcoinjs.script.toASM(out.script)
-      const hasOpReturn = _.includes(opcode, str)
-      return hasOpReturn ? extractOpcodeValue(opcode, str) : null
+    const scriptPubKeys = _.map('script', tx.outs)
+
+    const meta = _.map(out => {
+      return isOpReturn(out.script)
+        ? out.script.slice(2).toString('utf8') 
+        : null
     }, tx.outs)
-    return _.compact(filteredOpReturn)
+    return _.compact(meta)
   })
 }
 
 /**
- * Extract the opcode value (e.g OP_RETURN) from tx.output string
+ * Extract and save OP_RETURN metadata for
+ * a transaction.
  *
- * @name extractOpcodeValue
- * @function
- * @param {String} opcode opcode key (OP_RETURN)
- * @param {String} string String to extract value from
- * @returns {Array<String>}  Extracted and decoded opcode values
- */
-const extractOpcodeValue = (opcode, string) => {
-  const data = string.split(' ')
-  // Get opcode's index in array
-  const indexOfKey = _.indexOf(opcode, data)
-  // opcode's value position (+1)
-  const valueIndex = _.add(indexOfKey, 1)
-  // Decode opcode value
-  const opcodeValue = Buffer.from(data[valueIndex], 'base64')
-  return opcodeValue.toString()
-}
-
-/**
- * Extract and save OP_RETURN Record
- * given a transaction and blockhash
- *
- * @name extractAndSave
+ * @name saveOpMeta
  * @function
  * @param {String} txhash Transaction hash
  * @param {String} blockHash Block hash
+ * @param {Number} blockHeight Block Height
  * @returns {Promise}
  */
-const saveTxOpcodes = (txhash, blockHash, blockHeight) => {
-  return extractTxOpcodes(txhash)
-  .then(([opreturn]) => {
-    // Attemp to save only when tx has opreturn
-    return opreturn
-      ? saveOpReturn(opreturn, txhash, blockHash, blockHeight)
-      : null
+const saveOpMeta = (txhash, blockHash, blockHeight) => {
+  return extractOpMeta(txhash)
+  .then(opcodes => {
+    return new Promise((resolve) => {
+      mapSeries(opcodes, (opcode, next) => {
+        saveOpMeta(opcode, txhash, blockHash, blockHeight)
+        .then(saved => next(null, saved))
+      }, (err, all) =>{
+        resolve(all)
+      })
+    })
   })
 }
 
@@ -111,6 +113,5 @@ const indexBlock = blockHeight => {
 }
 
 module.exports = {
-  extractTxOpcodes,
   indexBlock
 }
