@@ -1,5 +1,6 @@
+#!/usr/bin/env node
 const migrate = require('migrate')
-const log = require('./logger.js')
+const log = require('../src/logger.js')
 
 migrate.load({
   stateStore: '.migrations'
