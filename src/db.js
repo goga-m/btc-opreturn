@@ -14,13 +14,13 @@ const db = new Pool(postgresql)
  * @returns {Promise<Object>} First occurence result
  */
 const queryByOpReturn = opReturnData => {
-  const encoded = Buffer.from(opReturnData, 'utf8').toString('hex')
+  const encoded = Buffer.from(opReturnData).toString('hex')
   const queryString = 'SELECT * FROM op_returns WHERE op_return = $1'
   return db.query(queryString, [encoded])
   // Format
   .then(({ rows }) => {
     return _.map(row => {
-      const opReturn = Buffer.from(String(row.op_return), 'hex').toString('utf8')
+      const opReturn = Buffer.from(row.op_return, 'hex').toString('utf8')
       return _.assign(row, { op_return: opReturn })
     }, rows)
   })
@@ -29,21 +29,21 @@ const queryByOpReturn = opReturnData => {
 /**
  * Save OP_RETURN data
  *
- * @name saveOpReturn
+ * @name saveOpMeta
  * @function
  * @param {String} str OP_RETURN string data (UTF-8)
  * @param {String} txhash Transaction hash the OP_RETURN is associated with
  * @param {String} blockhash Block hash that OP_RETURN was found in
  * @returns {Promise<Object>} Saved record
  */
-const saveOpReturn = (str, txhash, blockhash, blockHeight) => {
-  const encoded = Buffer.from(str, 'utf8').toString('hex')
+const saveOpMeta = (meta, txhash, blockhash, blockHeight) => {
+  const encoded = Buffer.from(meta).toString('hex')
   const insertNewQuery = 'INSERT INTO op_returns(op_return, txhash, blockhash, blockheight) VALUES($1, $2, $3, $4) RETURNING op_return, txhash, blockhash, blockheight'
   return db.query(insertNewQuery, [encoded, txhash, blockhash, blockHeight])
   .then(({ rows }) => rows[0])
   .then(row => {
-    const opReturn = Buffer.from(String(row.op_return), 'hex').toString('utf8')
-    return _.assign(row, { op_return: opReturn })
+    const opReturn = Buffer.from(row.op_return, 'hex').toString('utf8')
+    return _.assign(row, { op_return_utf: opReturn })
   })
 }
 
@@ -68,6 +68,6 @@ const getIndexedBlockHeight = () => {
 module.exports = {
   db,
   queryByOpReturn,
-  saveOpReturn,
+  saveOpMeta,
   getIndexedBlockHeight
 }
