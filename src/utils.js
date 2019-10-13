@@ -3,7 +3,7 @@ const { mapSeries, timesSeries } = require('async')
 const _ = require('lodash/fp')
 
 const btc = require('./rpc')()
-const { saveOpReturn, getIndexedBlockHeight } = require('./db')
+const { saveOpMeta, getIndexedBlockHeight } = require('./db')
 const log = require('./logger')
 
 /**
@@ -52,14 +52,14 @@ const extractOpMeta = txId => {
  * Extract and save OP_RETURN metadata for
  * a transaction.
  *
- * @name saveOpMeta
+ * @name scanOpMeta
  * @function
  * @param {String} txhash Transaction hash
  * @param {String} blockHash Block hash
  * @param {Number} blockHeight Block Height
  * @returns {Promise}
  */
-const saveOpMeta = (txhash, blockHash, blockHeight) => {
+const scanOpMeta = (txhash, blockHash, blockHeight) => {
   return extractOpMeta(txhash)
   .then(opcodes => {
     return new Promise((resolve) => {
@@ -90,21 +90,25 @@ const indexBlock = blockHeight => {
     btc('getblockhash', [blockHeight])
     .then(hash => btc('getblock', [hash]))
     .then(block => {
-      mapSeries(block.tx, (txhash, callback) => {
+      mapSeries(block.tx, (txhash, next) => {
         // Save OP_RETURNS of transaction (if found)
-        saveTxOpcodes(txhash, block.hash, blockHeight)
-        .then(opreturn => {
-          if (opreturn) {
-            log.info('Indexing', blockHeight, txhash, opreturn.op_return_utf)
-            // log.info(opreturn.op_return_utf)
-          }
-          callback()
+        scanOpMeta(txhash, block.hash, blockHeight)
+        .then(opreturns => {
+          // Log all opreturns saved for a transaction
+          _.forEach(op => {
+            log.info('Indexing', blockHeight, txhash, op.op_return_utf)
+          }, opreturns)
+
+          next(null, opreturns.length)
         })
         .catch(err => {
           log.error('Failed saving of ', err)
           // TODO: handle
         })
-      }, resolve)
+      }, (err, all) => {
+        // TODO: Specify logic
+        resolve(_.compact(all))
+      })
     })
     .catch(err => {
       console.log('reject', err)
