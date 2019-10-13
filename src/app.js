@@ -12,7 +12,7 @@ app.get('/opreturn/:opReturnData', (req, res, next) => {
   .then(data => {
     if (data.length === 0) {
       log.error(`GET /opreturn/${query}`, 'Not found')
-      return res.status(404).send({ error: 'Not Found' })
+      return res.status(404).send([])
     }
     res.json(data)
   })
