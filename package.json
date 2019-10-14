@@ -4,9 +4,8 @@
   "description": "Store and Index OP_RETURN metadata in bitcoin blockchain",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "migration": "node ./bin/migrate.js",
-    "indexing": "node ./bin/start-indexing.js",
+    "index": "node ./bin/start-indexing.js",
     "server": "node ./src/app.js"
   },
   "repository": {
