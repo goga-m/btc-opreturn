@@ -11,29 +11,6 @@ const OPIndex = options => {
   let idleDuration = 10000
 
   /**
-   * Monitor Unindexed blocks and start indexing if new blocks are found
-   * or stay idle until the next block production
-   *
-   * @name monitor
-   * @function
-   */
-  const monitor = async () => {
-    log.info('Start monitoring')
-    const lastBtcBlockHeight = await getBtcBlockHeight()
-    const lastIndexedBlockHeight = await getIndexedBlockHeight()
-
-    const missingBlockHeights = _.subtract(lastBtcBlockHeight, lastIndexedBlockHeight)
-
-    if (_.gt(missingBlockHeights, 0)) {
-      log.info(`Found ${missingBlockHeights} unindexed blocks`)
-      return start(lastIndexedBlockHeight, missingBlockHeights)
-    } else {
-      log.info('All block OP_RETURNS are indexed')
-      return idle()
-    }
-  }
-
-  /**
    * Get the last block height from blockchain
    *
    * @name getBtcBlockHeight
@@ -44,36 +21,80 @@ const OPIndex = options => {
     return btc('getblockchaininfo')
     .then(_.get('blocks'))
   }
-
+  
+  const isValidBlockHeight = blockHeight => {
+    return btc('getblockhash', [blockHeight])
+    .then(() => true)
+    .catch(() => false)
+  }
   /**
-   * start indexing
+   * Given a range of blocks heights, 
+   * start indexing sequentially all their OP_RETURN metadata.
    *
-   * @name start
+   * @name indexBlocks
    * @function
-   * @param {Number} blockHeight Current block height
-   * @param {Number} times Unindexed block's
+   * @param {Number/String} startBlockHeight Block to start indexing
+   * @param {Number/String} endBlockHeight  Block to stop indexing (including)
    */
-  start = (blockHeight, times) => {
-    status = 'indexing'
-    log.info('Start indexing', times, 'blocks')
-    timesSeries(times, (n, cb) => {
-      const next = _.add(n, 1) // n starts from 0
-      const nextBlock = _.add(blockHeight, next)
-      console.log('')
-      log.info(`Starting ${nextBlock} block `)
-      indexBlock(nextBlock)
-      .then(all => {
-        log.info(`Finished ${nextBlock} Indexed ${_.sum(all)} OP_RETURN records.`)
-        process.exit()
-        cb()
+  indexBlocks = async (startBlockHeight, endBlockHeight) => {
+    // Validate block heights
+    const isValidStartHeight =  await isValidBlockHeight(startBlockHeight)
+    const isValidEndHeight =  await isValidBlockHeight(endBlockHeight)
+
+    // Start is always required
+    if(!isValidStartHeight) 
+      return Promise.reject('Start block heigth does not exist.')
+
+    // Start is always required
+    if(!!endBlockHeight && !isValidEndHeight) 
+      return Promise.reject('End block heigth does not exist.')
+
+    let start = _.parseInt(10, startBlockHeight)
+    let end = isValidEndHeight ? _.parseInt(10, endBlockHeight) : start
+
+    if(_.gt(start, end)) 
+      return Promise.reject('Ending block should be greater than starting block.')
+
+
+    const times = _.add(_.subtract(end, start), 1)
+    // Start indexing
+    return new Promise((resolve, reject) => {
+      timesSeries(times, (idx, next) => {
+        // idx starts from 0, will include startingBlock
+        const nextBlock = _.add(start, idx) 
+        indexSingleBlock(nextBlock)
+        .then(({ totalIndexed, errored }) => {
+          next()
+          // TODO: Handle errored
+        })
+      }, res => {
+        resolve()
       })
-      .catch(err => {
-        console.log('error', err)
-      })
-    }, (err, all) => {
-      log.info(`Finished indexing for ${_.add(blockHeight, times)} blocks`)
     })
   }
+
+  /**
+   * Scan, index and store OP_RETURN metadata 
+   * for all the transactions of a requested block.
+   *
+   * Returns an report object that holds the total indexed records,
+   * and a list of errored records
+   *
+   * @name indexSingleBlock
+   * @function
+   * @param {Number} blockHeignt Block number to scan and store
+   * @returns {Promise<Object>} { totalIndexed: Number, errored: Array }
+   */
+  indexSingleBlock = async blockHeight => {
+    if(!blockHeight) {
+      log.error('Missing block height parameter')
+      return Promise.reject()
+    }
+
+    log.info('Start indexing block', blockHeight, '...')
+    return indexBlock(blockHeight)
+  }
+
 
   /**
    * idle
@@ -99,11 +120,13 @@ const OPIndex = options => {
     return status
   }
 
+  // API
   return {
-    monitor,
     getBtcBlockHeight,
     getIndexedBlockHeight,
-    getStatus
+    getStatus,
+    indexBlock: indexSingleBlock,
+    indexBlocks
   }
 }
 
