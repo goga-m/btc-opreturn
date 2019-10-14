@@ -4,6 +4,7 @@
   "description": "Store and Index OP_RETURN metadata in bitcoin blockchain",
   "main": "index.js",
   "scripts": {
+    "test": "jest",
     "migration": "node ./bin/migrate.js",
     "index": "node ./bin/start-indexing.js",
     "server": "node ./src/app.js"
@@ -28,5 +29,8 @@
     "migrate": "^1.6.2",
     "node-json-rpc2": "^1.1.0",
     "pg": "^7.12.1"
+  },
+  "devDependencies": {
+    "jest": "^24.9.0"
   }
 }
