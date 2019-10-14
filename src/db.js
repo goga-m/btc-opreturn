@@ -4,24 +4,30 @@ const Pool = require('pg').Pool
 const { postgresql, index } = require('../config')
 const db = new Pool(postgresql)
 
+const isBase64 = str =>  /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/.test(str)
+const isHex = str =>  (str.match(/([0-9]|[a-f])/gim ) || []).length === str.length
+
 /**
  * Given an opReturnData String,
  * query the op_returns table and fetch the matched record.
  *
  * @name queryByOpReturn
  * @function
- * @param {String} opReturnData opReturnData querystring
+ * @param {String} opReturnData opReturnData querystring (String in hex format)
  * @returns {Promise<Object>} First occurence result
  */
 const queryByOpReturn = opReturnData => {
-  const encoded = Buffer.from(opReturnData).toString('hex')
+  const encoded = Buffer.from(opReturnData).toString()
   const queryString = 'SELECT * FROM op_returns WHERE op_return = $1'
   return db.query(queryString, [encoded])
   // Format
   .then(({ rows }) => {
     return _.map(row => {
-      const opReturn = Buffer.from(row.op_return, 'hex').toString('utf8')
-      return _.assign(row, { op_return: opReturn })
+      // Format Output as hex string
+      const opReturnHex = Buffer.from(row.op_return, 'hex').toString('utf8')
+      return _.assign(row, {
+        op_return: opReturnHex
+      })
     }, rows)
   })
 }
@@ -29,21 +35,28 @@ const queryByOpReturn = opReturnData => {
 /**
  * Save OP_RETURN data
  *
+ * Performs upsert operation.
+ * A unique op_return record is the combination of 
+ * op_return and txhash
+ *
+ * 
+ *
  * @name saveOpMeta
  * @function
- * @param {String} str OP_RETURN string data (UTF-8)
+ * @param {Array} meta OP_RETURN (Hex Buffer)
  * @param {String} txhash Transaction hash the OP_RETURN is associated with
  * @param {String} blockhash Block hash that OP_RETURN was found in
  * @returns {Promise<Object>} Saved record
  */
 const saveOpMeta = (meta, txhash, blockhash, blockHeight) => {
-  const encoded = Buffer.from(meta).toString('hex')
-  const insertNewQuery = 'INSERT INTO op_returns(op_return, txhash, blockhash, blockheight) VALUES($1, $2, $3, $4) RETURNING op_return, txhash, blockhash, blockheight'
-  return db.query(insertNewQuery, [encoded, txhash, blockhash, blockHeight])
+  const encoded = meta.toString('hex')
+  const upsertQuery = 'INSERT INTO op_returns(op_return, txhash, blockhash, blockheight) VALUES($1, $2, $3, $4) ON CONFLICT (op_return, txhash) DO UPDATE SET op_return = $1 RETURNING op_return, txhash, blockhash, blockheight '
+  return db.query(upsertQuery, [encoded, txhash, blockhash, blockHeight])
   .then(({ rows }) => rows[0])
   .then(row => {
+    // Format op_return output to hex string
     const opReturn = Buffer.from(row.op_return, 'hex').toString('utf8')
-    return _.assign(row, { op_return_utf: opReturn })
+    return _.assign(row, { op_return: opReturn })
   })
 }
 
