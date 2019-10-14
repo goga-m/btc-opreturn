@@ -41,7 +41,7 @@ const extractOpMeta = txId => {
 
     const meta = _.map(out => {
       return isOpReturn(out.script)
-        ? out.script.slice(2).toString('utf8') 
+        ? out.script.slice(2)
         : null
     }, tx.outs)
     return _.compact(meta)
@@ -52,14 +52,14 @@ const extractOpMeta = txId => {
  * Extract and save OP_RETURN metadata for
  * a transaction.
  *
- * @name scanOpMeta
+ * @name saveTxOpMeta
  * @function
  * @param {String} txhash Transaction hash
  * @param {String} blockHash Block hash
  * @param {Number} blockHeight Block Height
  * @returns {Promise}
  */
-const scanOpMeta = (txhash, blockHash, blockHeight) => {
+const saveTxOpMeta = (txhash, blockHash, blockHeight) => {
   return extractOpMeta(txhash)
   .then(opcodes => {
     return new Promise((resolve) => {
@@ -79,40 +79,48 @@ const scanOpMeta = (txhash, blockHash, blockHeight) => {
  * This will fetch the block of the blockHeight
  * And then iterate over block's transaction to
  * save sequentially found OP_RETURNS of the transactions.
+ * 
+ * The errored OP_RETURN metadata are assumed that will
+ * be handled by the caller.
  *
  * @name indexBlock
  * @function
  * @param {Number} blockHeight Block height to save for
- * @returns {Promise}
+ * @returns {Promise<Object>} Return the total meta indexed and the errored
  */
 const indexBlock = blockHeight => {
   return new Promise((resolve, reject) => {
+    // Errored metadata from operations
+    const errored = []
     btc('getblockhash', [blockHeight])
     .then(hash => btc('getblock', [hash]))
     .then(block => {
+      // Index and Store each transaction's sequentially
       mapSeries(block.tx, (txhash, next) => {
-        // Save OP_RETURNS of transaction (if found)
-        scanOpMeta(txhash, block.hash, blockHeight)
+        // Save all metatags of this transaction (if found)
+        saveTxOpMeta(txhash, block.hash, blockHeight)
         .then(opreturns => {
           // Log all opreturns saved for a transaction
           _.forEach(op => {
-            log.info('Indexing', blockHeight, txhash, op.op_return_utf)
+            log.info('Indexing', 'BLOCK:', blockHeight, 'TXHASH:', txhash.substring(0, 8), 'OP_RETURN:', op.op_return)
           }, opreturns)
-
+          // Success
           next(null, opreturns.length)
         })
         .catch(err => {
-          log.error('Failed saving of ', err)
+          log.error('Indexing ', err)
           // TODO: handle
         })
+
       }, (err, all) => {
-        // TODO: Specify logic
-        resolve(_.compact(all))
+        // all is an array tha contains the total metadata entries saved per transaction
+        const totalIndexed = _.sum(_.compact(all))
+        // Returned totalIndexed and errored ones
+        log.info(`Finished ${blockHeight} Indexed ${totalIndexed} OP_RETURN records.`)
+        resolve({ totalIndexed, errored })
       })
     })
-    .catch(err => {
-      console.log('reject', err)
-    })
+    .catch(reject)
   })
 }
 
