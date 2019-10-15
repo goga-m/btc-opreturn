@@ -1,6 +1,8 @@
 const jsonRpc = require('node-json-rpc2')
 
 const { rpc } = require('../config')
+const log = require('../src/logger')
+
 const client = new jsonRpc.Client(rpc)
 
 /**
@@ -12,10 +14,13 @@ const client = new jsonRpc.Client(rpc)
  * @param {Array} params Rpc parameters array
  * @returns {Promise}
  */
-const call = (config = rpc) => (method, params = []) => {
+const call = (method, params = []) => {
   return new Promise((resolve, reject) => {
     client.call({ method, params }, (err, res) => {
-      if (err) return reject(err)
+      if (err) {
+        log.error(err)
+        return reject(err)
+      }
       resolve(res.result)
     })
   })

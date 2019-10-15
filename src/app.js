@@ -8,7 +8,7 @@ const log = require('./logger')
 app.get('/opreturn/:opReturnData', (req, res, next) => {
   const query = req.params.opReturnData
   log.info(`GET /opreturn/${query}`)
-
+  
   queryByOpReturn(query)
   .then(data => {
     if (data.length === 0) {
