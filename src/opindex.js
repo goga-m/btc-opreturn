@@ -3,7 +3,7 @@ const _ = require('lodash/fp')
 
 const { saveOpReturn, getIndexedBlockHeight } = require('./db')
 const { indexBlock } = require('./utils')
-const btc = require('./rpc')()
+const btc = require('./rpc')
 const log = require('./logger')
 
 const OPIndex = options => {
@@ -37,24 +37,27 @@ const OPIndex = options => {
    * @param {Number/String} endBlockHeight  Block to stop indexing (including)
    */
   indexBlocks = async (startBlockHeight, endBlockHeight) => {
-    // Validate block heights
-    const isValidStartHeight =  await isValidBlockHeight(startBlockHeight)
-    const isValidEndHeight =  await isValidBlockHeight(endBlockHeight)
+    let start = _.parseInt(10, startBlockHeight)
+    let end = endBlockHeight ? _.parseInt(10, endBlockHeight) : start
 
+    if(_.isNaN(start)) 
+      return Promise.reject('Start block is not valid.')
+
+    // Validate block heights
+    const isValidStartHeight =  await isValidBlockHeight(start)
+    const isValidEndHeight =  await isValidBlockHeight(end)
     // Start is always required
     if(!isValidStartHeight) 
       return Promise.reject('Start block heigth does not exist.')
 
     // Start is always required
-    if(!!endBlockHeight && !isValidEndHeight) 
+    if(!_.isNaN(end) && !isValidEndHeight) 
       return Promise.reject('End block heigth does not exist.')
 
-    let start = _.parseInt(10, startBlockHeight)
-    let end = isValidEndHeight ? _.parseInt(10, endBlockHeight) : start
+    // end =  ? _.parseInt(10, endBlockHeight) : start
 
     if(_.gt(start, end)) 
       return Promise.reject('Ending block should be greater than starting block.')
-
 
     const times = _.add(_.subtract(end, start), 1)
     // Start indexing
@@ -63,7 +66,8 @@ const OPIndex = options => {
         // idx starts from 0, will include startingBlock
         const nextBlock = _.add(start, idx) 
         indexSingleBlock(nextBlock)
-        .then(({ totalIndexed, errored }) => {
+        .then(() => {
+
           next()
           // TODO: Handle errored
         })
@@ -119,14 +123,16 @@ const OPIndex = options => {
   getStatus = () => {
     return status
   }
-
+ 
   // API
   return {
     getBtcBlockHeight,
     getIndexedBlockHeight,
     getStatus,
     indexBlock: indexSingleBlock,
-    indexBlocks
+    indexBlocks,
+    // Expose rpc commands
+    rpc: btc
   }
 }
 
