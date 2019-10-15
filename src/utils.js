@@ -44,7 +44,7 @@ const saveTxOpMeta = (tx, blockHash, blockHeight) => {
   return new Promise((resolve) => {
     const meta = extractOpMeta(tx)
     mapSeries(meta, (opcode, next) => {
-      saveOpMeta(opcode, tx.hash, blockHash, blockHeight)
+      saveOpMeta(opcode, tx.txid, blockHash, blockHeight)
       .then(saved => next(null, saved))
     }, (err, all) =>{
       resolve(all)
@@ -75,9 +75,9 @@ const indexBlock = blockHeight => {
     .then(hash => btc('getblock', [hash, 2]))
     .then(block => {
       // Index and Store each transaction's sequentially
-      mapSeries(block.tx, (txhash, next) => {
+      mapSeries(block.tx, (tx, next) => {
         // Save all metatags of this transaction (if found)
-        saveTxOpMeta(txhash, block.hash, blockHeight)
+        saveTxOpMeta(tx, block.hash, blockHeight)
         .then(opreturns => {
           // Log all opreturns saved for a transaction
           _.forEach(op => {

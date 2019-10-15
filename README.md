@@ -80,14 +80,14 @@ module.exports = {
 
 ### 1. Indexing
 The indexing process is responsible for parsing all transactions and extracting the `OP_RETURN` metatag from the transaction output scripts.
+#### Project flow
+WIP
 #### Extract metadata
-Uses the common pattern and store all the blocks found (40 bytes or 80 bytes for historic blocks). 
+WIP
 #### Store OP_RETURN entries 
 ### 2. Serving OP_RETURN metadata
 #### Querying
-* By op_record (querystring in hex format)
-* Problems
-####  Response JSON Format 
+WIP
 
 ## Database schema
 The database consists of two basic tables that store all the `op_return` meta information.
@@ -188,11 +188,17 @@ npm test match:coinsecrets
 ```
 
 ## Resources
+* https://en.bitcoin.it/wiki/Script
+* https://bitcoin.org/en/transactions-guide#null-data
 * http://coinsecrets.org
 * http://coinspark.org/developers/
 * http://coinspark.org/developers/metadata-format/
-* https://www.slideshare.net/coinspark/bitcoin-2-and-opreturns-the-blockchain-as-tcpip
 * https://github.com/coinspark/libraries/blob/master/javascript/coinspark.js
+* https://bitcoin.org/en/release/v0.12.0#relay-any-sequence-of-pushdatas-in-opreturn-outputs-now-allowed
+* https://github.com/bitcoin/bitcoin/blob/bccb4d29a8080bf1ecda1fc235415a11d903a680/src/script/script.cpp#L232
+* https://github.com/bitcoin/bitcoin/issues/3313
+I https://bitcointalk.org/index.php?topic=418437.0
+* https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/src/script.js#L28
 
 ## Packages used
  * [express](https://www.npmjs.com/package/express) 
