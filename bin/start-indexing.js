@@ -6,7 +6,10 @@ const startBlockHeight = process.argv[2]
 const endBlockHeight = process.argv[3]
 
 const idx = OPIndex()
-idx.indexBlocks(startBlockHeight, endBlockHeight)
+const start = parseInt(startBlockHeight)
+const end = parseInt(endBlockHeight)
+
+idx.indexBlocks(start, end)
 .catch(e => {
   log.error(e)
 })
