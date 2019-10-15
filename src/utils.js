@@ -2,50 +2,31 @@ const bitcoinjs = require('bitcoinjs-lib')
 const { mapSeries, timesSeries } = require('async')
 const _ = require('lodash/fp')
 
-const btc = require('./rpc')()
+const btc = require('./rpc')
 const { saveOpMeta, getIndexedBlockHeight } = require('./db')
+const { extractOpData } = require('./op_utils')
 const log = require('./logger')
 
 /**
- * Check if outputs script is an OP_RETURN
+ * Parses the output scripts, 
+ * extracts the OP_RETURN metadata.
  *
- * The output script for CoinSpark metadata begins with the OP_RETURN opcode (0x6A) 
- * followed by a length byte between 0 and 40 (0x00 … 0x28). 
- * This is the pattern followed by all OP_RETURN scripts
+ * Will return an array of Buffers where
+ * each buffer contains only the OP_RETURN data, 
+ * excluding all opcodes. Empty array if not found.
  *
- * See: http://coinspark.org/developers/metadata-format/
- *
- * @name isOpReturn
+ * @name extractOpMeta
  * @function
- * @param {Array} script Script Buffer
- * @returns {Boolean}
- */
-const isOpReturn = script => {
-  return script.length > 2 && script[0] == 0x6a && script[1] > 0 
-}
-
-/**
- * Given a transaction, extract OP_RETURN metadata
- *
- * @name extractTxOpcode
- * @function
- * @param {String} txId Transaction Id
+ * @param {Object} tx Transaction object
  * @returns {Array<String>} Array of decoded opcode values 
  */
-const extractOpMeta = txId => {
-  return btc('getrawtransaction', [txId])
-  .then(txHex => {
-    const tx = bitcoinjs.Transaction.fromHex(txHex)
-    // Map tx outputs containing the extracted & decoded opcode (OP_RETURN)
-    const scriptPubKeys = _.map('script', tx.outs)
-
-    const meta = _.map(out => {
-      return isOpReturn(out.script)
-        ? out.script.slice(2)
-        : null
-    }, tx.outs)
-    return _.compact(meta)
-  })
+const extractOpMeta = tx => {
+  const scriptPubKeys = _.map('scriptPubKey', tx.vout)
+  const meta = _.map(out => {
+    const script = Buffer.from(out.hex, 'hex')
+    return extractOpData(script)
+  }, scriptPubKeys)
+  return _.compact(meta)
 }
 
 /**
@@ -54,21 +35,19 @@ const extractOpMeta = txId => {
  *
  * @name saveTxOpMeta
  * @function
- * @param {String} txhash Transaction hash
+ * @param {Object} tx Transaction object
  * @param {String} blockHash Block hash
  * @param {Number} blockHeight Block Height
  * @returns {Promise}
  */
-const saveTxOpMeta = (txhash, blockHash, blockHeight) => {
-  return extractOpMeta(txhash)
-  .then(opcodes => {
-    return new Promise((resolve) => {
-      mapSeries(opcodes, (opcode, next) => {
-        saveOpMeta(opcode, txhash, blockHash, blockHeight)
-        .then(saved => next(null, saved))
-      }, (err, all) =>{
-        resolve(all)
-      })
+const saveTxOpMeta = (tx, blockHash, blockHeight) => {
+  return new Promise((resolve) => {
+    const meta = extractOpMeta(tx)
+    mapSeries(meta, (opcode, next) => {
+      saveOpMeta(opcode, tx.hash, blockHash, blockHeight)
+      .then(saved => next(null, saved))
+    }, (err, all) =>{
+      resolve(all)
     })
   })
 }
@@ -77,8 +56,8 @@ const saveTxOpMeta = (txhash, blockHash, blockHeight) => {
  * Save sequentially all OP_RETURNS given a blockHeight
  *
  * This will fetch the block of the blockHeight
- * And then iterate over block's transaction to
- * save sequentially found OP_RETURNS of the transactions.
+ * And then iterate over block's transactions to
+ * save sequentially all found OP_RETURNS of the transactions.
  * 
  * The errored OP_RETURN metadata are assumed that will
  * be handled by the caller.
@@ -93,7 +72,7 @@ const indexBlock = blockHeight => {
     // Errored metadata from operations
     const errored = []
     btc('getblockhash', [blockHeight])
-    .then(hash => btc('getblock', [hash]))
+    .then(hash => btc('getblock', [hash, 2]))
     .then(block => {
       // Index and Store each transaction's sequentially
       mapSeries(block.tx, (txhash, next) => {
@@ -102,7 +81,7 @@ const indexBlock = blockHeight => {
         .then(opreturns => {
           // Log all opreturns saved for a transaction
           _.forEach(op => {
-            log.info('Indexing', 'BLOCK:', blockHeight, 'TXHASH:', txhash.substring(0, 8), 'OP_RETURN:', op.op_return)
+            log.info('Indexing', 'BLOCK:', blockHeight, 'TXHASH:', op.txhash.substring(0, 8), 'OP_RETURN:', op.op_return)
           }, opreturns)
           // Success
           next(null, opreturns.length)
