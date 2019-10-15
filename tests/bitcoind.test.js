@@ -1,4 +1,4 @@
-const btcd = require('../src/rpc')()
+const btcd = require('../src/rpc')
 const { rpc } = require('../config')
 
 describe('Connection to bitcoind', () => {

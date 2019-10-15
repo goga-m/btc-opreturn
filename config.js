@@ -13,7 +13,7 @@ module.exports = {
     host: '127.0.0.1', // Will be 127.0.0.1 by default
     user: 'rpcuser', // Optional, only if auth needed
     password: 'rpcpassword', // Optional. Mandatory if user is passed.
-    port: 8339
+    port: 8332
   },
   // Indexing settings
   index: {
