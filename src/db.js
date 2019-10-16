@@ -1,10 +1,25 @@
 const _ = require('lodash/fp')
 const Pool = require('pg').Pool
 
-const { postgresql, index } = require('../config')
+const { postgresql } = require('../config')
 const { extractOpData } = require('../src/op_utils')
 
 const db = new Pool(postgresql)
+
+/**
+ * Format OP_RETURN JSON output
+ *
+ * @name formatOpReturnOutput
+ * @function
+ * @returns {Object}
+ */
+const formatOpReturnOutput = opr => {
+  return {
+    txhash: opr.txhash,
+    blockhash: opr.blockhash,
+    op_return: Buffer.from(opr.op_return_long, 'hex').toString('utf8')
+  }
+}
 
 /**
  * Given an opReturnData String,
@@ -17,7 +32,7 @@ const db = new Pool(postgresql)
  */
 const queryByOpReturn = opReturnDataHex => {
   // Remove any opcodes if included
-  const dataOnly = extractOpData(Buffer.from(opReturnDataHex, 'hex')) ||  Buffer.from(opReturnDataHex, 'hex')
+  const dataOnly = extractOpData(Buffer.from(opReturnDataHex, 'hex')) || Buffer.from(opReturnDataHex, 'hex')
   const encoded = dataOnly.toString('hex')
   const queryString = 'SELECT * FROM op_returns WHERE op_return = $1 OR op_return_long = $1'
   return db.query(queryString, [encoded])
@@ -28,10 +43,10 @@ const queryByOpReturn = opReturnDataHex => {
  * Save OP_RETURN data
  *
  * Performs upsert operation.
- * A unique op_return record is the combination of 
+ * A unique op_return record is the combination of
  * op_return and txhash
  *
- * 
+ *
  *
  * @name saveOpMeta
  * @function
@@ -50,36 +65,18 @@ const saveOpMeta = (meta, txhash, blockhash, blockHeight) => {
 }
 
 /**
- * Get last OP_RETURNS's Block height that is saved in db.
- * If op_returns table is empty, return default starting block height from config
+ * Select the last block height from op_returns
+ * that is not in errored blocks.
  *
  * @name getIndexedBlockHeight
  * @function
  * @returns {Promise<Number>} Last used block height number
  */
 const getIndexedBlockHeight = () => {
-  // Subtract default by 1 so that the indexing
-  // would start on the startingBlockHeight (e.g 500000), and thus not be skipped
-  const lastUnusedBlockHeight = _.subtract(index.startingBlockHeight, 1)
-
-  const queryString = 'SELECT * FROM op_returns ORDER BY blockheight DESC LIMIT 1'
-  return db.query(queryString)
-  .then(_.getOr(lastUnusedBlockHeight, 'rows[0].blockheight'))
-}
-
-/**
- * Format OP_RETURN JSON output
- *
- * @name formatOpReturnOutput
- * @function
- * @returns {Object}
- */
-const formatOpReturnOutput = opr => {
-  return {
-    txhash: opr.txhash,
-    blockhash: opr.blockhash,
-    op_return: Buffer.from(opr.op_return_long, 'hex').toString('utf8')
-  }
+  const queryStringAny = 'SELECT blockheight FROM op_returns ops WHERE NOT EXISTS (SELECT FROM errored_blocks e WHERE e.blockheight = ops.blockheight) ORDER BY blockheight DESC LIMIT 1'
+  return db.query(queryStringAny)
+  .then(({ rows }) => _.get('[0].blockheight', rows))
+  .then(height => height || 0)
 }
 
 /**
@@ -118,7 +115,20 @@ const removeFromErrored = blockHeight => {
 const getErroredBlocks = () => {
   const queryString = 'SELECT * FROM errored_blocks ORDER BY blockheight ASC'
   return db.query(queryString)
-  .then(({rows}) => rows)
+  .then(({ rows }) => rows)
+}
+
+/**
+ * Get a specific errored block from db.
+ *
+ * @name getErroredBlock
+ * @function
+ * @returns {Promise<Array>} Array Of blockHeights that errored
+ */
+const getErroredBlock = (blockHeight) => {
+  const queryString = 'SELECT * FROM errored_blocks WHERE blockheight = $1'
+  return db.query(queryString, [blockHeight])
+  .then(({ rows }) => rows)
 }
 
 module.exports = {
@@ -128,5 +138,6 @@ module.exports = {
   getIndexedBlockHeight,
   saveErroredBlock,
   getErroredBlocks,
-  removeFromErrored
+  removeFromErrored,
+  getErroredBlock
 }
