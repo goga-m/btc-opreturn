@@ -21,20 +21,7 @@ const queryByOpReturn = opReturnDataHex => {
   const encoded = dataOnly.toString('hex')
   const queryString = 'SELECT * FROM op_returns WHERE op_return = $1 OR op_return_long = $1'
   return db.query(queryString, [encoded])
-  // Format
-  .then(({ rows }) => {
-    return _.map(row => {
-      // Format Output as hex string
-      const opReturnHex = Buffer.from(row.op_return_long, 'hex').toString('utf8')
-      const opReturn = Buffer.from(row.op_return, 'hex').toString('utf8')
-      return {
-        txhash: row.txhash,
-        blockhash: row.blockhash,
-        op_return_long: opReturnHex,
-        op_return: opReturn
-      }
-    }, rows)
-  })
+  .then(({ rows }) => _.map(formatOpReturnOutput, rows))
 }
 
 /**
@@ -56,21 +43,10 @@ const queryByOpReturn = opReturnDataHex => {
 const saveOpMeta = (meta, txhash, blockhash, blockHeight) => {
   const sliced = meta.slice(0, 78).toString('hex')
   const full = meta.toString('hex')
-  const upsertQuery = 'INSERT INTO op_returns(op_return, op_return_long ,txhash, blockhash, blockheight) VALUES($1, $2, $3, $4, $5) ON CONFLICT (op_return, txhash) DO UPDATE SET op_return = $1, op_return_long = $2 RETURNING op_return, op_return_long, txhash, blockhash, blockheight'
+  const upsertQuery = 'INSERT INTO op_returns(op_return, op_return_long ,txhash, blockhash, blockheight) VALUES($1, $2, $3, $4, $5) ON CONFLICT (op_return_long, txhash) DO UPDATE SET op_return = $1, op_return_long = $2 RETURNING op_return, op_return_long, txhash, blockhash, blockheight'
   return db.query(upsertQuery, [sliced, full, txhash, blockhash, blockHeight])
   .then(({ rows }) => rows[0])
-  .then(row => {
-    // Format op_return output to hex string
-    const opReturnHex = Buffer.from(row.op_return_long, 'hex').toString('utf8')
-    const opReturn = Buffer.from(row.op_return, 'hex').toString('utf8')
-    return {
-      txhash: row.txhash,
-      blockhash: row.blockhash,
-      op_return_long: opReturnHex,
-      op_return: opReturn
-    }
-    return _.assign(row, { op_return: opReturn, op_return_long: opReturn80 })
-  })
+  .then(formatOpReturnOutput)
 }
 
 /**
@@ -91,9 +67,66 @@ const getIndexedBlockHeight = () => {
   .then(_.getOr(lastUnusedBlockHeight, 'rows[0].blockheight'))
 }
 
+/**
+ * Format OP_RETURN JSON output
+ *
+ * @name formatOpReturnOutput
+ * @function
+ * @returns {Object}
+ */
+const formatOpReturnOutput = opr => {
+  return {
+    txhash: opr.txhash,
+    blockhash: opr.blockhash,
+    op_return: Buffer.from(opr.op_return_long, 'hex').toString('utf8')
+  }
+}
+
+/**
+ * Save errored block's height in errored_blocks table.
+ *
+ * @name saveErroredBlock
+ * @function
+ * @param {Number} blockHeight Block height to save
+ * @returns {Promise<Number>} Last used block height number
+ */
+const saveErroredBlock = blockHeight => {
+  const queryString = 'INSERT INTO errored_blocks(blockheight, timestamp) VALUES($1, $2) ON CONFLICT (blockheight) DO UPDATE SET timestamp = $2'
+  return db.query(queryString, [blockHeight, new Date()])
+}
+
+/**
+ * Removed from errored table.
+ *
+ * @name removeFromErrored
+ * @function
+ * @param {Number} blockHeight Block height to delete
+ * @returns {Promise<Number>}
+ */
+const removeFromErrored = blockHeight => {
+  const removeString = 'DELETE FROM errored_blocks where blockheight = $1'
+  return db.query(removeString, [blockHeight])
+}
+
+/**
+ * Get all errored blocks.
+ *
+ * @name getErroredBlocks
+ * @function
+ * @returns {Promise<Array>} Array Of blockHeights that errored
+ */
+const getErroredBlocks = () => {
+  const queryString = 'SELECT * FROM errored_blocks ORDER BY blockheight ASC'
+  return db.query(queryString)
+  .then(({rows}) => rows)
+}
+
 module.exports = {
   db,
   queryByOpReturn,
   saveOpMeta,
-  getIndexedBlockHeight
+  getIndexedBlockHeight,
+  saveErroredBlock,
+  getErroredBlocks,
+  removeFromErrored
 }

@@ -7,6 +7,7 @@
     "test": "jest",
     "migration": "node ./bin/migrate.js",
     "index": "node ./bin/start-indexing.js",
+    "get:errored": "node ./bin/get-errored-blocks.js",
     "server": "node ./src/app.js"
   },
   "repository": {
