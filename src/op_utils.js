@@ -63,7 +63,6 @@ const extractOpData = scriptPubKey => {
     const pad = 83 - scriptPubKey.length 
     return data.slice(0, data.length - pad)
   }
-
   return data
 }
 
