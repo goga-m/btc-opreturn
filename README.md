@@ -27,6 +27,7 @@ Run migration. This will create the required database tables (e.g. ``op_returns`
 ```
 $ npm run migration
 ```
+A `./migrations/` direrctory will be created in the root folder that will hold the migration-related settings. If you need to re-run the migrations from start, remore this folder and run the above command.
 
 ## Configuration
 You can find the configuration file in the project's root directory ``/config.js`` to adjust the parameters for the database connection, JSON-RPC client, endpoint server and indexing.
@@ -127,13 +128,13 @@ The following url:
  ```
 Where the `op_return` field contains only the data of the `scriptPuKey` without the opcodes.
 
-If no `OP_RETURN` records are found,an empty array will be returned.
+If no `OP_RETURN` records are found, an empty array will be returned.
 
 ## Database schema
 The database consists of two basic tables that store all the `op_return` meta information.
 
 #### ``public.op_returns``
-This table holds the records of all succesfully indexed `OP_RETURN` records.
+This table holds the records of all indexed `OP_RETURN` records.
 The ``op_return`` along with ``txhash`` form a unique set mostly to be identified in re-indexing process to 
 prevent duplication.
 
@@ -155,6 +156,7 @@ This table contains the block heights of the blocks that errored in the indexing
 
 ## Usage
 ### Indexing commands
+
 Index and store in the database all `OP_RETURN` metatags for a particular block.
 ```bash
 npm run index <blockHeight>
@@ -164,7 +166,7 @@ Index and store all OP_RETURN data for set of blocks.
 ```bash
 npm run index <startingBlockHeight> <endingBlockHeight>
 ```
-When running indexing for multiple blocks, in each iteration, the process will check (only once) if there are any errored blocks to re-index them again before continuing to the next block. 
+When running indexing for multiple blocks, in each iteration, the process will check once if there are any errored blocks to re-index them again before continuing to the next block. 
 
 **Monitoring**
 
@@ -186,7 +188,7 @@ Get last indexed block.
 ```bash
 npm run get:last
 ```
-Get errored blocks (blocks that have failed to store all `OP_RETURN` metadata). Will show a list with the block height and the date when the indexing failed.
+Get errored blocks (blocks that have failed to store any of their `OP_RETURN` metadata). Will show a list with the block height and the date when the indexing failed.
 ```bash
 npm run get:errored
 ```
@@ -194,6 +196,9 @@ Re-index all errored blocks.
 ```bash
 npm run index:errored
 ```
+
+
+**Notice:**  When using the above indexing commands, the bitcoind settings for pruning need to be adjusted to include the data of the blocks that will be used.
 
 ### Server
 Run the endpoind server process to serve the `OP_RETURN` records.
@@ -206,9 +211,9 @@ http://localhost:3000/opreturn/${opReturnData}
 ```
 where `opReturnData` is expected to be in `hex` format. See above [**Querying**](https://github.com/Stephanniebermudez/georgemamoulasvili#querying)
 
-## Design considerations
+## Design considerations in implementation
 * **No missing OP_RETURN metadata.** <br> 
-    That is to say that the extraction logic should include all possible sets & formats of `OP_RETURN` metadata. Validate that the indexing process finds all the existing `OP_RETURN` metadata entries per transaction per block. 
+    That is to say that the extraction logic should include all possible sets & formats of `OP_RETURN` metadata.
     Comparison could be done using http://coinsecrets.org lists. Currently no known APIs are provided from these services to be able to automate the testing process on a large set of blocks.
 * **Reduce error handling complexity on indexing & storing.** <br> 
     When parsing a single block, there are many I/O operations (e.g JSON-RPC calls, database writes) that occur. Handle these errors on a higher level (block level) without blocking the indexing process.
@@ -220,6 +225,7 @@ where `opReturnData` is expected to be in `hex` format. See above [**Querying**]
     Indexing should be done as light as possible and should prioritize efficient resource consumption over speed. 
     Memory usage should be reduced as much as possible.
 
+
 ## Tests
 Test that the configuration for indexing process is correct. Checks the connection with PostgreSQL database, and with the bitcoind, to ensure that indexing app is ready to run.<br>
    See `config.postgresql` and `config.rpc`.
@@ -227,6 +233,7 @@ Test that the configuration for indexing process is correct. Checks the connecti
 ```bash
 npm test
 ```
+
 
 ## Resources
 * https://en.bitcoin.it/wiki/Script
@@ -238,7 +245,7 @@ npm test
 * https://bitcoin.org/en/release/v0.12.0#relay-any-sequence-of-pushdatas-in-opreturn-outputs-now-allowed
 * https://github.com/bitcoin/bitcoin/blob/bccb4d29a8080bf1ecda1fc235415a11d903a680/src/script/script.cpp#L232
 * https://github.com/bitcoin/bitcoin/issues/3313
-I https://bitcointalk.org/index.php?topic=418437.0
+* https://bitcointalk.org/index.php?topic=418437.0
 * https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/src/script.js#L28
 
 ## Packages used
