@@ -19,19 +19,13 @@ module.exports = {
   index: {
     // The starting block height when monitoring.
     startingBlockHeight: 599068,
+    // Idle time between transactions
+    idleBetweenTxs: 2, // ms
+    // Idle time between blocks
+    idleBetweenBlocks: 1000 // ms
   },
   // Endpoint server settings
   server: {
     port: 3000 // https://localhost:3000/opreturn/${opReturnData}
-  },
-  // Testing parameters (optional)
-  test: {
-    // Each object on the array indicates that 
-    // the referenced block `shouldHave` at least those OP_RETURNS (total
-    // See Test section below for more details.
-    coinsecretsMatch: [{
-      block: 1, // Bitcoin block 1
-      shouldHave: 0 // Should have at least 0 OP_RETURNS
-    }] 
   }
 }

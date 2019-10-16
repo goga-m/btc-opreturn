@@ -15,6 +15,7 @@ const client = new jsonRpc.Client(rpc)
  * @returns {Promise}
  */
 const call = (method, params = []) => {
+  log.info(`[${method}]`, params[0])
   return new Promise((resolve, reject) => {
     client.call({ method, params }, (err, res) => {
       if (err) {
