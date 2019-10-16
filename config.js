@@ -18,7 +18,7 @@ module.exports = {
   // Indexing settings
   index: {
     // The starting block height when monitoring.
-    startingBlockHeight: 599068,
+    startingBlockHeight: 599500,
     // Idle time between transactions
     idleBetweenTxs: 2, // ms
     // Idle time between blocks
