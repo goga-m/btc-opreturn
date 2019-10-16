@@ -1,10 +1,13 @@
 const { mapSeries, timesSeries } = require('async')
 const _ = require('lodash/fp')
 
-const { saveOpReturn, getIndexedBlockHeight } = require('./db')
+const config = require('../config')
+const db = require('./db')
 const { indexBlock } = require('./utils')
 const btc = require('./rpc')
 const log = require('./logger')
+
+const IDLE_BETWEEN_BLOCKS = _.get('index.idleBetweenBlocks', config) || 1
 
 const OPIndex = options => {
   let status = 'idle'
@@ -22,11 +25,6 @@ const OPIndex = options => {
     .then(_.get('blocks'))
   }
   
-  const isValidBlockHeight = blockHeight => {
-    return btc('getblockhash', [blockHeight])
-    .then(() => true)
-    .catch(() => false)
-  }
   /**
    * Given a range of blocks heights, 
    * start indexing sequentially all their OP_RETURN metadata.
@@ -36,28 +34,9 @@ const OPIndex = options => {
    * @param {Number/String} startBlockHeight Block to start indexing
    * @param {Number/String} endBlockHeight  Block to stop indexing (including)
    */
-  indexBlocks = async (startBlockHeight, endBlockHeight) => {
+  const indexBlocks = async (startBlockHeight, endBlockHeight) => {
     let start = _.parseInt(10, startBlockHeight)
     let end = endBlockHeight ? _.parseInt(10, endBlockHeight) : start
-
-    if(_.isNaN(start)) 
-      return Promise.reject('Start block is not valid.')
-
-    // Validate block heights
-    const isValidStartHeight =  await isValidBlockHeight(start)
-    const isValidEndHeight =  await isValidBlockHeight(end)
-    // Start is always required
-    if(!isValidStartHeight) 
-      return Promise.reject('Start block heigth does not exist.')
-
-    // Start is always required
-    if(!_.isNaN(end) && !isValidEndHeight) 
-      return Promise.reject('End block heigth does not exist.')
-
-    // end =  ? _.parseInt(10, endBlockHeight) : start
-
-    if(_.gt(start, end)) 
-      return Promise.reject('Ending block should be greater than starting block.')
 
     const times = _.add(_.subtract(end, start), 1)
     // Start indexing
@@ -67,9 +46,59 @@ const OPIndex = options => {
         const nextBlock = _.add(start, idx) 
         indexSingleBlock(nextBlock)
         .then(() => {
+          setTimeout(() => next(), IDLE_BETWEEN_BLOCKS)
+        })
+        .catch(err => {
+          // Attempt to index once more. If it 
+          // failed, continue the list, and it will 
+          // be handled later.
+          log.info('Attempt to re-index.', nextBlock)
+          indexSingleBlock(nextBlock)
+          .then(() => {
+            setTimeout(() => next(), IDLE_BETWEEN_BLOCKS)
+          })
+          .catch(err => {
+            log.info(`Failed again to index: ${ nextBlock}. Continuing`)
+            next()
+          })
+        })
+      }, res => {
+        resolve()
+      })
+    })
+  }
 
-          next()
-          // TODO: Handle errored
+  /**
+   * Index a given list of blocks 
+   * (Array of block heights)
+   *
+   * @name async
+   * @function
+   * @param {Array<Number>} blocks Blocks to index
+   * @returns {Promise<>}
+   */
+  const indeBlockList = async (blocks) => {
+    // Start indexing
+    return new Promise((resolve, reject) => {
+      mapSeries(blocks, (blockHeight, next) => {
+        // idx starts from 0, will include startingBlock
+        indexSingleBlock(blockHeight)
+        .then(() => {
+          setTimeout(() => next(), IDLE_BETWEEN_BLOCKS)
+        })
+        .catch(err => {
+          // Attempt to index once more. If it 
+          // failed, continue the list, and it will 
+          // be handled later.
+          log.info('Attempt to re-index.', nextBlock)
+          indexSingleBlock(nextBlock)
+          .then(() => {
+            setTimeout(() => next(), IDLE_BETWEEN_BLOCKS)
+          })
+          .catch(err => {
+            log.info(`Failed again to index: ${ nextBlock}. Continuing`)
+            next()
+          })
         })
       }, res => {
         resolve()
@@ -81,22 +110,39 @@ const OPIndex = options => {
    * Scan, index and store OP_RETURN metadata 
    * for all the transactions of a requested block.
    *
-   * Returns an report object that holds the total indexed records,
-   * and a list of errored records
+   * Returns an report object that holds the total indexed records.
+   *
+   * On succesfull indexing block height will be removed
+   * from errored blocks (if it existed there).
+   *
+   * On error, the block height along with the timestamp
+   * will be saved in the errored_blocks table to be handled at other time.
    *
    * @name indexSingleBlock
    * @function
    * @param {Number} blockHeignt Block number to scan and store
    * @returns {Promise<Object>} { totalIndexed: Number, errored: Array }
    */
-  indexSingleBlock = async blockHeight => {
+  const indexSingleBlock = async blockHeight => {
     if(!blockHeight) {
       log.error('Missing block height parameter')
       return Promise.reject()
     }
 
     log.info('Start indexing block', blockHeight, '...')
-    return indexBlock(blockHeight)
+    db.saveErroredBlock(blockHeight)
+    .then(() => indexBlock(blockHeight))
+    .then(() => db.removeFromErrored(blockHeight))
+    .catch(err => {
+      return db.saveErroredBlock(blockHeight)
+      .then(() => {
+        throw new Error('Block failed to index all transactions')
+      })
+    })
+  }
+
+  const getErroredBlocks = async () => {
+    return db.getErroredBlocks()
   }
 
 
@@ -106,7 +152,7 @@ const OPIndex = options => {
    * @name idle
    * @function
    */
-  idle = () => {
+  const idle = () => {
     status = 'idle'
     log.info('Going idle')
     setTimeout(() => {
@@ -114,25 +160,15 @@ const OPIndex = options => {
     }, idleDuration)
   }
 
-  /**
-   * Return current status (indexing, idle)
-   *
-   * @name getStatus
-   * @function
-   */
-  getStatus = () => {
-    return status
-  }
- 
   // API
   return {
     getBtcBlockHeight,
-    getIndexedBlockHeight,
-    getStatus,
+    getIndexedBlockHeight: db.getIndexedBlockHeight,
     indexBlock: indexSingleBlock,
     indexBlocks,
     // Expose rpc commands
-    rpc: btc
+    rpc: btc,
+    getErroredBlocks
   }
 }
 
