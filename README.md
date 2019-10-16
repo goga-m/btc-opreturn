@@ -1,5 +1,5 @@
 # Project description
-**App to index and store bitcoin OP_RETURN data.**
+**App to index and store bitcoin `OP_RETURN`** data.
 
 
 The project will consist of two parts. The first would be to scan ``OP_RETURN`` metadata from the connected bitcoin node, and store them in the local database. Then, the indexed `OP_RETURN` data will be served from the following http endpoint:
@@ -7,8 +7,6 @@ The project will consist of two parts. The first would be to scan ``OP_RETURN`` 
 `/opreturn/${opReturnData}`
 
 where the associated transaction hash and block hash will be returned.
-
-###### * *DRAFT1* - *This documentation is a work in progress and not in it's final state. More description will be added soon regarding the project structure. Application's described functionality is also being tested and final modifications are being added so to be ready for review and test.*
 
 ## Prerequisites
 * **NodeJS** (v10 or v12).
@@ -51,43 +49,85 @@ module.exports = {
     host: '127.0.0.1', // Will be 127.0.0.1 by default
     user: 'rpcuser', // Optional, only if auth needed
     password: 'rpcpassword', // Optional. Mandatory if user is passed.
-    port: 8339
+    port: 8332
   },
   // Indexing settings
   index: {
     // The starting block height when monitoring.
     startingBlockHeight: 599068,
+    // Idle time between transactions
+    idleBetweenTxs: 2, // ms
+    // Idle time between blocks
+    idleBetweenBlocks: 1000 // ms
   },
   // Endpoint server settings
   server: {
     port: 3000 // https://localhost:3000/opreturn/${opReturnData}
-  },
-  // Testing parameters (optional)
-  test: {
-    // Match with coinsecrets results.
-    // See Test section below for more details.
-    coinsecretsMatch: [{
-      // Local block 599069
-      block: 599069, 
-      // Should have minimum of 398 total OP_RETURNs. (398 is the total number retrieved from coinsecrets)
-      shouldHave: 398 
-    }] 
   }
 }
 ```
 
-## Project structure
+## Overview
 
 ### 1. Indexing
 The indexing process is responsible for parsing all transactions and extracting the `OP_RETURN` metatag from the transaction output scripts.
-#### Project flow
-WIP
-#### Extract metadata
-WIP
-#### Store OP_RETURN entries 
-### 2. Serving OP_RETURN metadata
+
+The basic unit that the indexing process operates is the block. It can index and store all `OP_RETURN`  metadata for a single block, for a set of blocks or run in `monitoring` mode  where it looks for new blocks and index them automatically (See more on [Monitoring](https://github.com/goga-m/btc-opreturn#usage)).
+
+#### Extract metadata & Store `OP_RETURN` entries 
+The indexing process will iterate over each output of the transaction to filter out those that have `OP_RETURN` metadata. It will then parse the `scriptPubKey` and will extract the data only by decompiling and removing any sequence of all the available opcodes.
+
+The indexing application can be used in different ways by using the available commands as described below (in [Usage](https://github.com/goga-m/btc-opreturn#usage))
+
+
+
+
+### 2. Serving ``OP_RETURN`` metadata
 #### Querying
-WIP
+When quering for indexed `OP_RETURN` entries, several requirements should be met in order to be able to correctly identify the `OP_RETURN` metadata from the query string and locate it in the database. 
+
+The encoding of the querystring is `hex` and it can support the following formats:
+ * It can be a full `scriptPubKey` format (83 bytes) with all the opcodes included. <br>
+ For example as they are formatted in blockstream's `SCRIPTPUBKEY (HEX)` section [here](https://blockstream.info/tx/c89bebdcaf9ee70d0dbb5d8e5e94349ff4446a396097716cb1bdd4ccd29f7208?expand). <br>
+ ```
+   6a4c5000087bdd0002be6ca950708cd9640ff0d2c8c4a2344007dfd6706dc12870e354e6b49f735da62d7f1be1603ee8a21a2b9134f6585da6cd3607013fb655f381678525e667a5accf523515c4dac74a78cf
+ ```
+* It can also be only the metadata string (without the opcodes)<br>
+  As it is formatted for example in blockchain.com [here.](https://www.blockchain.com/btc/tx/c89bebdcaf9ee70d0dbb5d8e5e94349ff4446a396097716cb1bdd4ccd29f7208?show_adv=true)
+
+ ```
+   00087bdd0002be6ca950708cd9640ff0d2c8c4a2344007dfd6706dc12870e354e6b49f735da62d7f1be1603ee8a21a2b9134f6585da6cd3607013fb655f381678525e667a5accf523515c4dac74a78cf
+ ```
+* 81 max byte `scriptPubKey` is supported as well, as they are formatted in coinsecrets.org ('raw' format) where the last bytes are excluded.
+  See [here](http://coinsecrets.org/?to=599585).
+ ```
+   6a4c5000087bdd0002be6ca950708cd9640ff0d2c8c4a2344007dfd6706dc12870e354e6b49f735da62d7f1be1603ee8a21a2b9134f6585da6cd3607013fb655f381678525e667a5accf523515c4dac74a
+ ```
+The querystring will be processed and decompiled, and the server will return the indexed matches found in the database.
+
+**Note**: The postgresql query uses the equality operator and not `LIKE` or `ILIKE`, so that the result of the query will be the same `scriptPybKey` metadata and not a similar one.
+
+**Example**
+
+The following url:
+
+ ```
+   http://localhost:3000/opreturn/6a4c5000087bdd0002be6ca950708cd9640ff0d2c8c4a2344007dfd6706dc12870e354e6b49f735da62d7f1be1603ee8a21a2b9134f6585da6cd3607013fb655f381678525e667a5accf523515c4dac74a
+ ```
+ Should return:
+
+ ```json
+[
+  {
+    "txhash": "c89bebdcaf9ee70d0dbb5d8e5e94349ff4446a396097716cb1bdd4ccd29f7208",
+    "blockhash": "00000000000000000005a1ee0ad4d9a9a7c234805f8b135009155b2ca7c53187",
+    "op_return": "00087bdd0002be6ca950708cd9640ff0d2c8c4a2344007dfd6706dc12870e354e6b49f735da62d7f1be1603ee8a21a2b9134f6585da6cd3607013fb655f381678525e667a5accf523515c4dac74a78cf"
+  }
+]
+ ```
+Where the `op_return` field contains only the data of the `scriptPuKey` without the opcodes.
+
+If no `OP_RETURN` records are found,an empty array will be returned.
 
 ## Database schema
 The database consists of two basic tables that store all the `op_return` meta information.
@@ -96,9 +136,11 @@ The database consists of two basic tables that store all the `op_return` meta in
 This table holds the records of all succesfully indexed `OP_RETURN` records.
 The ``op_return`` along with ``txhash`` form a unique set mostly to be identified in re-indexing process to 
 prevent duplication.
+
 |  Column |  Type | Collation  | Nullable  | Default  |
 |---|---|---|---|---|
  op_return   | bytea   |           | not null | <br>
+ op_return_long   | bytea   |           | not null | <br>
  txhash      | text    |           | not null | <br>
  blockhash   | text    |           | not null | <br>
  blockheight | integer |           | not null | <br>
@@ -109,27 +151,50 @@ This table contains the block heights of the blocks that errored in the indexing
 |  Column |  Type | Collation  | Nullable  | Default  |
 |---|---|---|---|---|
  blockheight   | bytea   |           | not null | <br>
+ timestamp   | timestamp   |           | not null | <br>
 
 ## Usage
 ### Indexing commands
-1. Index and store in the database all OP_RETURN metatags for a particular block.
+Index and store in the database all `OP_RETURN` metatags for a particular block.
 ```bash
 npm run index <blockHeight>
 ```
 
-2. Index and store all OP_RETURN data for set of blocks.
+Index and store all OP_RETURN data for set of blocks.
 ```bash
 npm run index <startingBlockHeight> <endingBlockHeight>
 ```
+When running indexing for multiple blocks, in each iteration, the process will check (only once) if there are any errored blocks to re-index them again before continuing to the next block. 
 
-3. Index and store all OP_RETURN data for a particular transaction.
+**Monitoring**
+
+Index all blocks starting from `<startingBlockHeight>` or else `config.index.startingBlockHeight` (see configuration above) and automatically index new blocks generated in the blockchain. Can be deamonized to run forever.
 ```bash
-npm run tx:index <transactionHash> 
+npm run monitor <startingBlockHeight> # Will use config.index.startingBlockHeight if not provided.
 ```
-4. Index all blocks starting from `config.index.startingBlockHeight` (see configuration above) and automatically index new blocks generated in the blockchain. Can be deamonized to run forever.
+The monitoring flow will operate based on the following logic:
+* Checks the starting block (either provided, or from config) and the last generated block height from bitcoin node.<br>
+  It starts to index all the blocks until it reaches the last block height.
+* When the indexing finishes, it checks for any failed blocks (blocks that had at least one `OP_RETURN` record failed to store) in `errored_blocks` table. It will try once to re-index them again and empty the `errored_blocks` table.
+* Then it goes into idle mode, waiting for the generation of a new block to automatically index it.
+
+If the monitoring process is interrupted (e.g process killed), it keeps the state of the application in the database and will continue from it's previous state, once the `npm run monitor`  command is executed next time.<br>
+
+**Additional explicit commands**<br>
+
+Get last indexed block.
 ```bash
-npm run monitor
+npm run get:last
 ```
+Get errored blocks (blocks that have failed to store all `OP_RETURN` metadata). Will show a list with the block height and the date when the indexing failed.
+```bash
+npm run get:errored
+```
+Re-index all errored blocks.
+```bash
+npm run index:errored
+```
+
 ### Server
 Run the endpoind server process to serve the `OP_RETURN` records.
 ```bash
@@ -139,7 +204,7 @@ It will start the server at the specified port in `config.server.port`: <br>
 ```
 http://localhost:3000/opreturn/${opReturnData} 
 ```
-where `opReturnData` is expected to be in hex format.
+where `opReturnData` is expected to be in `hex` format. See above [**Querying**](https://github.com/goga-m/btc-opreturn#querying)
 
 ## Design considerations
 * **No missing OP_RETURN metadata.** <br> 
@@ -156,35 +221,11 @@ where `opReturnData` is expected to be in hex format.
     Memory usage should be reduced as much as possible.
 
 ## Tests
-1. Test that the configuration for indexing process is correct. Checks the connection with PostgreSQL database, and with the bitcoind, to ensure that indexing app is ready to run.<br>
+Test that the configuration for indexing process is correct. Checks the connection with PostgreSQL database, and with the bitcoind, to ensure that indexing app is ready to run.<br>
    See `config.postgresql` and `config.rpc`.
 
 ```bash
-npm test index:config
-```
-2. Test that server configuration is correct and that the server app operates serves on `/opreturn/${opReturnData}` endpoint.
-
-```bash
-npm test server:config
-```
-3. Index a predefined range of blocks from bitcoind and make sure the results (the total number of `OP_RETURN` records per block) match the ones form http://coinsecrets.org. 
-   The total records from coinsecrets are checked in the website and added by hand. In case you want to add more total `OP_RETURNs` per block, you can do that in the `config.test.coinsecretsMatch` section.<br>
-
-Example config:
-```javascript
-test: {
-  // Match with coinsecrets results.
-  coinsecretsMatch: [{
-    // Local block 599069
-    block: 599069, 
-    // Should have minimum of 398 total OP_RETURNs. (398 is the total number retrieved from coinsecrets)
-    shouldHave: 398 
-  }] 
-}
-```
-Run the command to test the results
-```bash
-npm test match:coinsecrets
+npm test
 ```
 
 ## Resources
