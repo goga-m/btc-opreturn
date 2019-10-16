@@ -93,13 +93,13 @@ const OPIndex = options => {
           // Attempt to index once more. If it
           // failed, continue the list, and it will
           // be handled later.
-          log.info('Attempt to re-index.', nextBlock)
-          indexSingleBlock(nextBlock)
+          log.info('Attempt to re-index.', blockHeight)
+          indexSingleBlock(blockHeight)
           .then(() => {
             setTimeout(() => next(), IDLE_BETWEEN_BLOCKS)
           })
           .catch(err => {
-            log.info(`Failed again to index: ${nextBlock}. Continuing`)
+            log.info(`Failed again to index: ${blockHeight}. Continuing`)
             next()
           })
         })
@@ -179,7 +179,7 @@ const OPIndex = options => {
             throw new Error(`Failed to index ${errored.length} blocks.`)
             return null
           }
-          log.error('Indexed all errored blocks.')
+          log.error('Checked all errored blocks.')
           return null
         })
       })
@@ -217,6 +217,12 @@ const OPIndex = options => {
       return indexErroredBlocks()
     })
     .then(() => {
+      log.info('Going idle...')
+      setTimeout(() => {
+        monitor()
+      }, MONITOR_IDLE_TIME)
+    })
+    .catch(() => {
       log.info('Going idle...')
       setTimeout(() => {
         monitor()
