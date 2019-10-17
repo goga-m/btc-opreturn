@@ -151,7 +151,7 @@ This table contains the block heights of the blocks that errored in the indexing
 
 |  Column |  Type | Collation  | Nullable  | Default  |
 |---|---|---|---|---|
- blockheight   | bytea   |           | not null | <br>
+ blockheight   | integer   |           | not null | <br>
  timestamp   | timestamp   |           | not null | <br>
 
 ## Usage
