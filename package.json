@@ -32,10 +32,11 @@
     "express": "^4.17.1",
     "lodash": "^4.17.15",
     "migrate": "^1.6.2",
+    "minimist": "^1.2.5",
     "node-json-rpc2": "^1.1.0",
     "pg": "^7.12.1"
   },
   "devDependencies": {
-    "jest": "^24.9.0"
+    "jest": "^25.2.1"
   }
 }
