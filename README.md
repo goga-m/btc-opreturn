@@ -1,8 +1,10 @@
 # Project description
-**App to index and store bitcoin `OP_RETURN`** data.
+**NodeJS command-line tool to index, store and monitor bitcoin `OP_RETURN`** metadata.
 
 
-The project will consist of two parts. The first would be to scan ``OP_RETURN`` metadata from the connected bitcoin node, and store them in the local database. Then, the indexed `OP_RETURN` data will be served from the following http endpoint:
+This tool consists of two parts.
+The first is to scan ``OP_RETURN`` metadata from the connected bitcoin node, and store them in the local database (See more on [Overview](https://github.com/goga-m/btc-opreturn#overview) and [Usage](https://github.com/goga-m/btc-opreturn#usage)).
+Then, the indexed `OP_RETURN` data could be served from the following local http endpoint:
 
 `/opreturn/${opReturnData}`
 
@@ -257,5 +259,6 @@ npm test
  * [async.js](https://www.npmjs.com/package/async) 
  * [bunyan logger](https://www.npmjs.com/package/bunyan) 
  * [lodash fp](https://www.npmjs.com/package/lodash) 
+ * [jest](https://www.npmjs.com/package/jest) 
 
 <br><br>
