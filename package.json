@@ -1,0 +1,23 @@
+{
+  "name": "btc-opreturn",
+  "version": "0.0.1",
+  "description": "Store and Index OP_RETURN metadata in bitcoin blockchain",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goga-m/btc-opreturn.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/goga-m/btc-opreturn/issues"
+  },
+  "homepage": "https://github.com/goga-m/btc-opreturn.git#readme",
+  "dependencies": {
+    "migrate": "^1.6.2",
+    "pg": "^7.12.1"
+  }
+}
