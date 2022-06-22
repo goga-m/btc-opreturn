@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/goga-m/btc-opreturn.git#readme",
   "dependencies": {
-    "async": "^3.1.0",
+    "async": "^3.2.2",
     "bitcoinjs-lib": "^5.1.6",
     "bunyan": "^1.8.12",
     "bunyan-format": "^0.2.1",
